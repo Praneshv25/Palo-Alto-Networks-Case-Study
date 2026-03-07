@@ -13,6 +13,7 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
 
+
     from database import init_app
     init_app(app)
 
