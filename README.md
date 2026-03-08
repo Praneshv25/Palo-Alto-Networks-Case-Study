@@ -1,145 +1,96 @@
-# Community Guardian
 
-A digital wellness and safety platform that transforms noisy neighborhood posts into verified, calm safety reports using AI-powered "Noise-to-Signal" filtering.
+---
 
-## Architecture
+# 🛡️ Community Safety & Digital Wellness
+**Demo:** https://youtu.be/CeUhgsSzACg
 
-```
-┌─────────────────┐       ┌──────────────────────────────────────┐
-│  React Frontend │──────▶│          Flask Backend               │
-│  (TypeScript)   │  API  │                                      │
-│                 │◀──────│  ┌────────────┐   ┌──────────────┐  │
-│  - Signal Feed  │       │  │ Gemini 3   │   │  Rule-Based  │  │
-│  - Report Form  │       │  │ Flash AI   │   │  Fallback    │  │
-│  - Safe Circle  │       │  └─────┬──────┘   └──────┬───────┘  │
-│  - Vote System  │       │        │                  │          │
-└─────────────────┘       │        ▼                  ▼          │
-                          │  ┌─────────────────────────────┐     │
-                          │  │    SQLite (guardian.db)      │     │
-                          │  │  Users │ RawPosts │ Reports  │     │
-                          │  │  SafeCircles │ Votes         │     │
-                          │  └─────────────────────────────┘     │
-                          └──────────────────────────────────────┘
-```
+**Candidate:** Pranesh Velmurugan
 
-**Tech Stack**: React + TypeScript + Vite (frontend) | Flask + Python (backend) | SQLite (data) | Gemini 2.0 Flash (AI) | Tailwind CSS (styling)
+**Scenario:** Community Safety & Digital Wellness
 
-## Features
+**Time Investment:** 5 Hours
 
-- **Noise-to-Signal AI Filtering** — Transforms emotional, panicked posts into calm, factual reports with actionable 1-2-3 checklists via Gemini
-- **Dual-Tab Feed** — Local Safety and Digital Defense categories with keyword search and severity/status filters
-- **Rule-Based Fallback** — Keyword/regex engine activates when Gemini is unavailable, tagging reports as "Pending Verification"
-- **Community-Driven Truth** — Up/down voting system with trust badge lifecycle (AI Generated → Community Verified / Flagged)
-- **Status Resolution** — Mark reports as "Resolved" for visual closure and anxiety reduction
-- **Safe Circle** — Share safety status with trusted contacts (prototype with synthetic data)
-- **Calm UI** — De-saturated blue/green palette designed to reduce alert fatigue
+---
 
-## Setup
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Python 3.9+
-- Node.js 18+
-- A Gemini API key ([Get one here](https://aistudio.google.com/apikey))
+* **Python:** 3.9+
+* **Node.js:** 18+
+* **API Key:** Gemini API Key ([Get one here](https://aistudio.google.com/))
 
-### Backend
+### Installation & Setup
 
 ```bash
+# 1. Setup Backend
 cd backend
 python3 -m venv venv
-source venv/bin/activate        # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# Create .env from the example
+# 2. Environment Configuration
 cp .env.example .env
-# Edit .env and add your Gemini API key
+# Edit .env and add your GEMINI_API_KEY
 
+# 3. Run Application
 python app.py
-# Server runs on http://localhost:5000
+
 ```
 
-The database is created and seeded automatically on first run.
+### Running Tests
 
-### Frontend
+To ensure the environment is configured correctly, run the following:
 
-```bash
-cd frontend
-npm install
-npm run dev
-# App runs on http://localhost:5173
-```
-
-The Vite dev server proxies `/api` requests to the Flask backend on port 5000.
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/health` | API + AI connectivity status |
-| `GET` | `/api/reports` | List reports (query: `category`, `search`, `status`, `severity`) |
-| `POST` | `/api/reports` | Create report from raw post via AI filtering |
-| `PATCH` | `/api/reports/<id>` | Update report status (Active/Resolved) |
-| `POST` | `/api/reports/<id>/vote` | Cast/toggle/switch a vote on a report |
-| `GET` | `/api/users` | List synthetic users |
-
-### POST /api/reports
-
-```json
-{
-  "content": "OMG fire near the park everyone run!!!",
-  "category": "local",
-  "author_id": "user_002"
-}
-```
-
-### POST /api/reports/:id/vote
-
-```json
-{
-  "user_id": "user_001",
-  "vote_type": "up"
-}
-```
-
-## Trust Label Lifecycle
-
-Reports move through a trust lifecycle based on community voting:
-
-- **AI Generated** — Default for Gemini-processed reports
-- **Pending Verification** — Default for fallback (non-AI) reports
-- **Community Verified** — 3+ upvotes with upvotes > 2× downvotes
-- **Flagged** — 3+ downvotes exceeding upvotes
-
-## Running Tests
-
-### Backend (17 tests)
+**Backend (Pytest)**
 
 ```bash
 cd backend
 source venv/bin/activate
 python -m pytest tests/ -v
+
 ```
 
-Covers: AI happy path, fallback on failure, input validation, voting logic, trust badge transitions.
-
-### Frontend (11 tests)
+**Frontend (Vitest)**
 
 ```bash
 cd frontend
 npx vitest run
+
 ```
 
-Covers: ReportCard rendering, severity badges, trust badge states, vote display, resolved status.
+---
 
-## Data Safety
+## 🤖 AI Disclosure & Verification
 
-- All data is **synthetic** — no real personal information
-- API keys managed via `.env` (never committed)
-- Location uses **neighborhood-level** geofencing, not GPS coordinates
-- Safe Circle concept uses **encrypted sharing** (visual prototype)
+* **Did you use an AI assistant?** Yes (Gemini for project planning; Cursor w/ Claude Opus for execution).
+* **Verification Strategy:** * **Design-First:** I authored a design document and fed it into Cursor to establish a structured plan.
+* **Logic Audits:** I manually reviewed generated API routes to ensure business logic was sound and data flow was accurate.
+* **Automated Testing:** I implemented test cases for both backend and frontend to prevent regression while adding new features.
+* **Manual QA:** Verified all UI interactions, page transitions, and button triggers manually.
 
-## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `GEMINI_API_KEY` | Google Gemini API key for AI filtering |
+
+> [!IMPORTANT]
+> **Rejected Suggestion:** The AI initially suggested a dummy login system using a dropdown menu of pre-set users. I rejected this as it invalidated the security-centric nature of a safety app; I insisted on a more realistic (albeit MVP) authentication flow to maintain project integrity.
+
+---
+
+## ⚖️ Tradeoffs & Prioritization
+
+To stay within the **4–6 hour limit**, I focused on core functional logic over security hardening and UI polish.
+
+| Feature Category | What was Cut (MVP) | Future Roadmap (Next Steps) |
+| --- | --- | --- |
+| **Communication** | Blocking in group chats | Bluetooth Mesh Network support |
+| **Security** | Identity verification / Password hashing | Proper Auth & Encryption |
+| **User Safety** | Real-time location sharing | Spam Avoidance & Reporting |
+| **UI/UX** | High-fidelity UI styling | Push Notifications |
+
+### Known Limitations
+
+* **Encryption:** Group chat data is currently not encrypted.
+* **Platform:** A web app is suboptimal for this use case; a native mobile app would be the ideal format for safety features.
+* **Monetization:** There is currently no ad integration or revenue model.
+
+---
