@@ -79,6 +79,14 @@ export default function ReportCard({ report, userId, onUpdate }: ReportCardProps
                 {report.sourceCount} reports
               </span>
             )}
+            {report.newsSource && (
+              <span
+                title={`Corroborated by: ${report.newsSource}`}
+                className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1"
+              >
+                📰 News verified
+              </span>
+            )}
             {isResolved && (
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-calm-100 text-calm-700 border border-calm-300">
                 Resolved

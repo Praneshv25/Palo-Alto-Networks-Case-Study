@@ -32,6 +32,7 @@ function mapReport(raw: Record<string, unknown>): SafetyReport {
     sourceCount: (raw.source_count as number) ?? 1,
     lat: (raw.lat as number | null) ?? null,
     lng: (raw.lng as number | null) ?? null,
+    newsSource: (raw.news_source as string | null) ?? null,
   };
 }
 

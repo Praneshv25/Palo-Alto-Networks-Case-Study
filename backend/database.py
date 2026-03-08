@@ -70,6 +70,18 @@ def init_db(db=None):
             created_at TEXT NOT NULL,
             source_count INTEGER NOT NULL DEFAULT 1,
             lat REAL,
+            lng REAL,
+            news_source TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS news_articles (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            source TEXT NOT NULL,
+            category TEXT NOT NULL CHECK(category IN ('Local_Physical', 'Digital_Security')),
+            published_at TEXT NOT NULL,
+            lat REAL,
             lng REAL
         );
 
@@ -174,53 +186,77 @@ def seed_db(db=None):
     reports = [
         ("rep_001", "post_001", "Local_Physical", "High",
          "Structure Fire: North Salisbury Street",
-         "A fire has been reported on North Salisbury Street with visible smoke. Emergency services are responding to the scene.",
+         "A fire has been reported on North Salisbury Street with visible smoke. Emergency services are responding to the scene. Journal & Courier confirms multiple units on scene.",
          json.dumps(["Avoid North Salisbury Street and surrounding blocks.", "Close windows if you smell smoke.", "Check official city alerts for updates."]),
          "Active", 800, 1, "community_verified", 5, 1,
-         None, utc_iso(now - timedelta(hours=5)), 1, *PA_COORDS["north"]),
+         None, utc_iso(now - timedelta(hours=5)), 2, *PA_COORDS["north"],
+         "Journal & Courier: Firefighters respond to blaze on N. Salisbury St"),
 
         ("rep_002", "post_002", "Local_Physical", "Medium",
          "Vehicle Break-In Attempt: Downtown Area",
          "An attempted vehicle break-in has been reported in the Downtown area near State Street. No injuries or successful theft confirmed.",
          json.dumps(["Lock vehicles and remove visible valuables.", "Report suspicious activity to local police.", "Consider installing a dashcam or motion-sensor light."]),
          "Active", 500, 1, "ai_generated", 2, 0,
-         None, utc_iso(now - timedelta(hours=4)), 1, *PA_COORDS["downtown"]),
+         None, utc_iso(now - timedelta(hours=4)), 1, *PA_COORDS["downtown"], None),
 
         ("rep_003", "post_003", "Digital_Security", "Medium",
          "Phishing Email: Fake Utility Bill Notice",
          "A phishing email impersonating Duke Energy is circulating, claiming overdue payment and threatening service disconnection. No data breach has been confirmed.",
          json.dumps(["Do not click links in unsolicited emails.", "Verify the sender address matches official Duke Energy domains.", "Report the email as spam in your client."]),
          "Active", 0, 1, "ai_generated", 1, 0,
-         None, utc_iso(now - timedelta(hours=3)), 1, *PA_COORDS["digital"]),
+         None, utc_iso(now - timedelta(hours=3)), 1, *PA_COORDS["digital"], None),
 
         ("rep_004", "post_004", "Local_Physical", "High",
          "Downed Power Line: Northwestern Ave & State St",
          "A downed power line has been reported at Northwestern Ave near State Street. Electrical sparks have been observed.",
          json.dumps(["Stay at least 30 feet away from the downed line.", "Do not touch anything in contact with the wire.", "Call 911 if you haven't already."]),
          "Resolved", 600, 1, "community_verified", 7, 0,
-         "Utility crew has secured the area and restored power.", utc_iso(now - timedelta(hours=2)), 1, *PA_COORDS["north2"]),
+         "Utility crew has secured the area and restored power.", utc_iso(now - timedelta(hours=2)), 1, *PA_COORDS["north2"], None),
 
         ("rep_005", "post_005", "Digital_Security", "High",
          "SMS Phishing: Fake University Messages",
          "Multiple residents are receiving phishing text messages impersonating Purdue University and requesting Social Security numbers.",
          json.dumps(["Do not reply or provide personal information.", "Block the sender and report to your carrier.", "Notify the university IT security office of the impersonation."]),
          "Active", 0, 1, "ai_generated", 3, 0,
-         None, utc_iso(now - timedelta(hours=1)), 1, *PA_COORDS["digital"]),
+         None, utc_iso(now - timedelta(hours=1)), 1, *PA_COORDS["digital"], None),
 
         ("rep_006", "post_007", "Local_Physical", "Medium",
          "Creek Overflow: Burnett Creek Area",
-         "Burnett Creek is overflowing into the adjacent parking lot on the south side. No structural damage reported yet.",
+         "Burnett Creek is overflowing into the adjacent parking lot on the south side. No structural damage reported yet. WLFI News 18 reports the city has been notified.",
          json.dumps(["Avoid parking near Burnett Creek.", "Monitor local weather and flood advisories.", "Report rising water to public works."]),
-         "Active", 400, 0, "pending_verification", 1, 2,
-         None, utc_iso(now - timedelta(minutes=30)), 1, *PA_COORDS["greer"]),
+         "Active", 400, 1, "community_verified", 3, 0,
+         None, utc_iso(now - timedelta(minutes=30)), 2, *PA_COORDS["greer"],
+         "WLFI News 18: Burnett Creek flooding threatens south-side parking"),
+
+        # Far-away reports — used to test "Near Me" filter
+        ("rep_007", None, "Local_Physical", "High",
+         "Wildfire: Malibu Canyon Road Evacuations",
+         "A fast-moving wildfire near Malibu Canyon Road has prompted evacuation orders for several residential areas. Cal Fire reports the blaze is 0% contained.",
+         json.dumps(["Follow all evacuation orders immediately.", "Tune in to local emergency broadcasts for updates.", "Do not return until authorities declare it safe."]),
+         "Active", 5000, 1, "ai_generated", 8, 0,
+         None, utc_iso(now - timedelta(hours=3)), 1, 34.0455, -118.7815, None),
+
+        ("rep_008", None, "Digital_Security", "High",
+         "Data Breach: Regional Bank Customer Records Exposed",
+         "A major data breach at a regional financial institution has exposed customer account numbers and personal data for thousands of clients across the southeast.",
+         json.dumps(["Monitor your bank statements for unauthorized transactions.", "Change online banking passwords immediately.", "Enable two-factor authentication on all financial accounts."]),
+         "Active", 0, 1, "ai_generated", 4, 0,
+         None, utc_iso(now - timedelta(hours=6)), 1, 25.7617, -80.1918, None),
+
+        ("rep_009", None, "Local_Physical", "Medium",
+         "Gas Leak: Capitol Hill Neighborhood",
+         "Crews are responding to a reported gas leak in the Capitol Hill area. Residents within two blocks are advised to evacuate as a precaution.",
+         json.dumps(["Leave the area immediately if you smell gas.", "Do not use electrical switches or open flames.", "Call your gas utility's emergency line."]),
+         "Active", 800, 1, "ai_generated", 2, 0,
+         None, utc_iso(now - timedelta(hours=1)), 1, 47.6253, -122.3222, None),
     ]
     for r in reports:
         db.execute(
             """INSERT INTO safety_reports
                (id, parent_post_id, category, severity, title, summary, checklist,
                 status, location_radius, is_ai_generated, trust_label, upvotes, downvotes,
-                resolution_note, created_at, source_count, lat, lng)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                resolution_note, created_at, source_count, lat, lng, news_source)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             r,
         )
 
@@ -283,6 +319,62 @@ def seed_db(db=None):
     db.executemany(
         "INSERT INTO safe_circle_messages (id, circle_owner_id, sender_id, content, created_at) VALUES (?, ?, ?, ?, ?)",
         chat_messages,
+    )
+
+    # Dummy local news articles
+    # Intended matches:
+    #   news_001 → rep_001 (Salisbury St fire)
+    #   news_002 → rep_006 (Burnett Creek flooding)
+    #   news_003 → rep_002 (vehicle break-ins)
+    #   news_004 → rep_005 (Purdue phishing SMS)
+    #   news_005 / news_006 → no existing report (new incidents users may report)
+    news_articles = [
+        ("news_001", "Local_Physical",
+         "Firefighters respond to structure fire on N. Salisbury St",
+         "West Lafayette Fire Department units responded to a structure fire on North Salisbury Street early this morning. Heavy smoke was visible from several blocks away. Residents are advised to avoid the area while crews work to contain the blaze.",
+         "Journal & Courier",
+         utc_iso(now - timedelta(hours=5, minutes=10)),
+         40.4401, -86.9077),
+
+        ("news_002", "Local_Physical",
+         "Burnett Creek flooding threatens south-side parking",
+         "Rising water levels in Burnett Creek have caused overflow into a parking lot on the south side of West Lafayette. City public works has been notified and crews are assessing the situation. Drivers are urged to avoid the area.",
+         "WLFI News 18",
+         utc_iso(now - timedelta(minutes=45)),
+         40.4190, -86.9140),
+
+        ("news_003", "Local_Physical",
+         "Police warn of vehicle break-in spree near State Street",
+         "West Lafayette Police Department is asking residents to secure their vehicles after a series of break-in attempts were reported near the State Street corridor downtown. Officers are increasing patrols in the area.",
+         "Purdue Exponent",
+         utc_iso(now - timedelta(hours=3, minutes=30)),
+         40.4275, -86.9077),
+
+        ("news_004", "Digital_Security",
+         "Purdue IT warns of phishing texts requesting SSNs",
+         "Purdue University IT Security has issued an alert warning students and staff about fraudulent text messages impersonating the university and requesting Social Security numbers. Recipients are urged not to respond and to report the messages.",
+         "Purdue Exponent",
+         utc_iso(now - timedelta(hours=2)),
+         None, None),
+
+        ("news_005", "Local_Physical",
+         "Suspicious package reported near Chauncey Hill Mall",
+         "West Lafayette police briefly closed a section of Chauncey Hill Mall area after a suspicious package was reported. The package was later determined to be harmless. No injuries were reported.",
+         "Journal & Courier",
+         utc_iso(now - timedelta(hours=1)),
+         40.4248, -86.9081),
+
+        ("news_006", "Digital_Security",
+         "Tippecanoe County residents targeted by Medicare scam calls",
+         "The Tippecanoe County Sheriff's Office reports a wave of scam phone calls targeting seniors, with callers impersonating Medicare representatives and requesting payment information.",
+         "WLFI News 18",
+         utc_iso(now - timedelta(hours=4)),
+         None, None),
+    ]
+    db.executemany(
+        """INSERT INTO news_articles (id, category, title, content, source, published_at, lat, lng)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        news_articles,
     )
 
     db.commit()

@@ -88,6 +88,58 @@ def filter_with_ai(content):
     return result
 
 
+NEWS_MATCH_PROMPT = """You are a community safety analyst. A user submitted a neighborhood safety report. Compare it with a local news article to determine if they describe the SAME real-world incident.
+
+User report:
+Title: {report_title}
+Summary: {report_summary}
+
+News article:
+Headline: {article_title}
+Excerpt: {article_content}
+
+If they describe the SAME incident, produce an enriched summary (max 3 sentences) that incorporates verified details from the news article into the report summary. Keep the tone calm and factual.
+
+Respond with ONLY valid JSON, no markdown, no code fences:
+
+If same incident:
+{{"matches": true, "enriched_summary": "..."}}
+
+If different incidents:
+{{"matches": false}}"""
+
+
+def check_news_match(report_title, report_summary, article_title, article_content):
+    """
+    Ask Gemini whether a news article matches a safety report.
+    Returns {"matches": bool, "enriched_summary": str | None}.
+    """
+    client = _get_client()
+
+    prompt = NEWS_MATCH_PROMPT.format(
+        report_title=report_title,
+        report_summary=report_summary,
+        article_title=article_title,
+        article_content=article_content[:500],
+    )
+
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+        config={"temperature": 0.2},
+    )
+
+    result = json.loads(_parse_and_strip_fences(response.text))
+
+    if not isinstance(result.get("matches"), bool):
+        raise ValueError("Missing 'matches' boolean in news-match response")
+
+    if result["matches"] and not result.get("enriched_summary"):
+        raise ValueError("Missing 'enriched_summary' in positive news-match response")
+
+    return result
+
+
 def check_and_aggregate(existing_title, existing_summary, new_content):
     """
     Ask Gemini if new_content describes the same incident as the existing report.

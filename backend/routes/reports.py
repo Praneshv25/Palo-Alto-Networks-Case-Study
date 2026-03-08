@@ -5,8 +5,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify
 from database import get_db
-from services.ai_service import filter_with_ai, check_and_aggregate
-from services.fallback import analyze_with_fallback, jaccard_similarity, fallback_merge
+from services.ai_service import filter_with_ai, check_and_aggregate, check_news_match
+from services.fallback import analyze_with_fallback, jaccard_similarity, fallback_merge, news_matches_report
 
 reports_bp = Blueprint("reports", __name__)
 
@@ -22,6 +22,15 @@ def _haversine_km(lat1, lng1, lat2, lng2):
     dlambda = math.radians(lng2 - lng1)
     a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _find_candidate_news(db, category, minutes=1440):
+    """Return news articles in the same category published in the last N minutes."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+    return db.execute(
+        "SELECT * FROM news_articles WHERE category = ? AND published_at > ? ORDER BY published_at DESC LIMIT 10",
+        (category, cutoff),
+    ).fetchall()
 
 
 def _find_recent_active_reports(db, category, minutes=AGGREGATION_WINDOW_MINUTES):
@@ -48,6 +57,7 @@ def _row_to_dict(row):
     d.setdefault("source_count", 1)
     d["lat"] = float(d["lat"]) if d.get("lat") is not None else None
     d["lng"] = float(d["lng"]) if d.get("lng") is not None else None
+    d["news_source"] = d.get("news_source")
     return d
 
 
@@ -130,10 +140,15 @@ def create_report():
                 # Fall through to rule-based similarity below
         
         if merged is None:
-            # Gemini unavailable or failed: use word-overlap similarity
+            # Gemini unavailable or failed: use word-overlap similarity.
+            # Check both full text (title+summary) and title-only — the latter
+            # catches cases where the AI summary uses different vocabulary than
+            # the raw post, but the title keywords still align strongly.
             existing_text = candidate["title"] + " " + candidate["summary"]
-            sim = jaccard_similarity(existing_text, content)
-            print(f"[AGG] Fallback similarity with {candidate['id']}: {sim:.2f}")
+            full_sim = jaccard_similarity(existing_text, content)
+            title_sim = jaccard_similarity(candidate["title"], content)
+            sim = max(full_sim, title_sim)
+            print(f"[AGG] Fallback similarity with {candidate['id']}: full={full_sim:.2f} title={title_sim:.2f}")
             if sim >= 0.25:
                 merged = fallback_merge(dict(candidate), content)
 
@@ -173,6 +188,48 @@ def create_report():
          is_ai_generated, trust_label, now, report_lat, report_lng),
     )
     db.commit()
+
+    # --- News corroboration: check if any recent news article covers this incident ---
+    news_articles = _find_candidate_news(db, ai_result["category"])
+    for article in news_articles:
+        matched = False
+        enriched_summary = None
+
+        if is_ai_generated:
+            try:
+                result = check_news_match(
+                    ai_result["title"], ai_result["summary"],
+                    article["title"], article["content"],
+                )
+                if result["matches"]:
+                    matched = True
+                    enriched_summary = result["enriched_summary"]
+            except Exception as e:
+                print(f"[NEWS] Gemini news-match failed ({type(e).__name__}): {e}")
+
+        if not matched:
+            matched = news_matches_report(
+                article["title"], article["content"],
+                ai_result["title"], ai_result["summary"],
+            )
+
+        if matched:
+            source_label = f"{article['source']}: {article['title']}"
+            print(f"[NEWS] Corroborated by: {source_label}")
+            db.execute(
+                """UPDATE safety_reports
+                   SET news_source = ?,
+                       summary = COALESCE(?, summary),
+                       trust_label = CASE
+                           WHEN trust_label = 'pending_verification' THEN 'ai_generated'
+                           ELSE trust_label
+                       END
+                   WHERE id = ?""",
+                (source_label, enriched_summary, report_id),
+            )
+            db.commit()
+            break
+    # ---------------------------------------------------------------------------
 
     report = db.execute("SELECT * FROM safety_reports WHERE id = ?", (report_id,)).fetchone()
     return jsonify(_row_to_dict(report)), 201

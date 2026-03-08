@@ -18,6 +18,7 @@ export interface SafetyReport {
   sourceCount: number;
   lat: number | null;
   lng: number | null;
+  newsSource: string | null;
 }
 
 export interface VoteResponse {

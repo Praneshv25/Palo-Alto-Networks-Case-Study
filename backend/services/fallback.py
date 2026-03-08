@@ -103,6 +103,16 @@ def fallback_merge(existing_report, new_content):
     }
 
 
+def news_matches_report(article_title, article_content, report_title, report_summary, threshold=0.2):
+    """
+    Rule-based check: does a news article likely cover the same incident as a report?
+    Uses Jaccard similarity across all four text fields combined.
+    """
+    article_text = article_title + " " + article_content
+    report_text = report_title + " " + report_summary
+    return jaccard_similarity(article_text, report_text) >= threshold
+
+
 def analyze_with_fallback(content):
     """Rule-based fallback when Gemini is unavailable."""
     content_lower = content.lower()
