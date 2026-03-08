@@ -15,6 +15,9 @@ export interface SafetyReport {
   trustLabel: TrustLabel;
   upvotes: number;
   downvotes: number;
+  sourceCount: number;
+  lat: number | null;
+  lng: number | null;
 }
 
 export interface VoteResponse {
@@ -29,4 +32,6 @@ export interface User {
   username: string;
   neighborhood: string;
   role: 'User' | 'Guardian' | 'Admin';
+  lat: number | null;
+  lng: number | null;
 }

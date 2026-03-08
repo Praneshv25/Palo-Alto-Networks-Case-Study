@@ -5,10 +5,12 @@ import ReportFeed from './components/ReportFeed';
 import CreateReportForm from './components/CreateReportForm';
 import SafeCircle from './components/SafeCircle';
 import LoginScreen from './components/LoginScreen';
+import SignUpScreen from './components/SignUpScreen';
 
 export default function App() {
   const { user, loading } = useAuth();
   const [view, setView] = useState<'feed' | 'create' | 'circle'>('feed');
+  const [authScreen, setAuthScreen] = useState<'login' | 'signup'>('login');
 
   if (loading) {
     return (
@@ -18,11 +20,15 @@ export default function App() {
     );
   }
 
-  if (!user) return <LoginScreen />;
+  if (!user) {
+    return authScreen === 'login'
+      ? <LoginScreen onSignUp={() => setAuthScreen('signup')} />
+      : <SignUpScreen onBackToLogin={() => setAuthScreen('login')} />;
+  }
 
   return (
     <Layout currentView={view} onNavigate={setView}>
-      {view === 'feed' && <ReportFeed userId={user.id} />}
+      {view === 'feed' && <ReportFeed userId={user.id} userLat={user.lat} userLng={user.lng} />}
       {view === 'create' && (
         <CreateReportForm onCreated={() => setView('feed')} />
       )}

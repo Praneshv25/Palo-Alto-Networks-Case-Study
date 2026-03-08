@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-export default function LoginScreen() {
+interface LoginScreenProps {
+  onSignUp: () => void;
+}
+
+export default function LoginScreen({ onSignUp }: LoginScreenProps) {
   const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -74,7 +78,17 @@ export default function LoginScreen() {
           </button>
         </form>
 
-        <div className="mt-6 p-3 bg-calm-100 rounded-lg text-xs text-calm-600">
+        <p className="text-center text-sm text-calm-600 mt-4">
+          New here?{' '}
+          <button
+            onClick={onSignUp}
+            className="text-calm-800 font-medium hover:underline"
+          >
+            Create an account
+          </button>
+        </p>
+
+        <div className="mt-4 p-3 bg-calm-100 rounded-lg text-xs text-calm-600">
           <p className="font-medium mb-1">Demo accounts:</p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
             <span>maria / pass123</span>

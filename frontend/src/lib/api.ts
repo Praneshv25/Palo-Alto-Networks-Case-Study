@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { SafetyReport, VoteResponse, User } from '../types/report';
 
 const client = axios.create({
-  baseURL: 'http://127.0.0.1:5000/api',
+  baseURL: 'http://127.0.0.1:5001/api',
 });
 
 client.interceptors.request.use((config) => {
@@ -29,6 +29,9 @@ function mapReport(raw: Record<string, unknown>): SafetyReport {
     trustLabel: raw.trust_label as SafetyReport['trustLabel'],
     upvotes: raw.upvotes as number,
     downvotes: raw.downvotes as number,
+    sourceCount: (raw.source_count as number) ?? 1,
+    lat: (raw.lat as number | null) ?? null,
+    lng: (raw.lng as number | null) ?? null,
   };
 }
 
@@ -37,6 +40,9 @@ export async function getReports(params?: {
   search?: string;
   status?: string;
   severity?: string;
+  lat?: number;
+  lng?: number;
+  radius_km?: number;
 }): Promise<SafetyReport[]> {
   const { data } = await client.get('/reports', { params });
   return (data as Record<string, unknown>[]).map(mapReport);
@@ -46,9 +52,27 @@ export async function createReport(body: {
   content: string;
   category: string;
   author_id: string;
+  lat?: number | null;
+  lng?: number | null;
 }): Promise<SafetyReport> {
   const { data } = await client.post('/reports', body);
   return mapReport(data as Record<string, unknown>);
+}
+
+export async function signup(body: {
+  username: string;
+  password: string;
+  neighborhood: string;
+  lat?: number | null;
+  lng?: number | null;
+}): Promise<{ token: string; user: User }> {
+  const { data } = await client.post('/signup', body);
+  return data as { token: string; user: User };
+}
+
+export async function updateLocation(lat: number, lng: number): Promise<User> {
+  const { data } = await client.patch('/me/location', { lat, lng });
+  return data as User;
 }
 
 export async function updateReport(
@@ -78,6 +102,11 @@ export async function getUsers(): Promise<User[]> {
   return data as User[];
 }
 
+export async function searchUsers(query: string): Promise<User[]> {
+  const { data } = await client.get('/users', { params: { search: query } });
+  return data as User[];
+}
+
 export async function healthCheck(): Promise<{ status: string; ai_service: string }> {
   const { data } = await client.get('/health');
   return data as { status: string; ai_service: string };
@@ -91,12 +120,29 @@ export interface CircleMessage {
   sender_name: string;
 }
 
-export interface CircleRequest {
-  id: string;
-  requester_id: string;
-  requester_name: string;
-  status: string;
-  created_at: string;
+export interface CircleMembership {
+  owner_id: string;
+  owner_name: string;
+  owner_neighborhood: string;
+}
+
+export async function getMyCircleMembers(): Promise<User[]> {
+  const { data } = await client.get('/circles/mine');
+  return data as User[];
+}
+
+export async function addCircleMember(contactId: string): Promise<User> {
+  const { data } = await client.post('/circles/members', { contact_id: contactId });
+  return data as User;
+}
+
+export async function removeCircleMember(contactId: string): Promise<void> {
+  await client.delete(`/circles/members/${contactId}`);
+}
+
+export async function getMyMemberships(): Promise<CircleMembership[]> {
+  const { data } = await client.get('/circles/memberships');
+  return data as CircleMembership[];
 }
 
 export async function getCircleMessages(circleOwnerId: string): Promise<CircleMessage[]> {
@@ -107,28 +153,4 @@ export async function getCircleMessages(circleOwnerId: string): Promise<CircleMe
 export async function sendCircleMessage(circleOwnerId: string, content: string): Promise<CircleMessage> {
   const { data } = await client.post(`/circles/${circleOwnerId}/messages`, { content });
   return data as CircleMessage;
-}
-
-export async function getCircleMembers(circleOwnerId: string): Promise<User[]> {
-  const { data } = await client.get(`/circles/${circleOwnerId}/members`);
-  return data as User[];
-}
-
-export async function requestJoinCircle(circleOwnerId: string): Promise<{ id: string; status: string }> {
-  const { data } = await client.post(`/circles/${circleOwnerId}/request`);
-  return data as { id: string; status: string };
-}
-
-export async function getCircleRequests(circleOwnerId: string): Promise<CircleRequest[]> {
-  const { data } = await client.get(`/circles/${circleOwnerId}/requests`);
-  return data as CircleRequest[];
-}
-
-export async function handleCircleRequest(
-  circleOwnerId: string,
-  requestId: string,
-  status: 'approved' | 'denied'
-): Promise<{ id: string; status: string }> {
-  const { data } = await client.patch(`/circles/${circleOwnerId}/requests/${requestId}`, { status });
-  return data as { id: string; status: string };
 }

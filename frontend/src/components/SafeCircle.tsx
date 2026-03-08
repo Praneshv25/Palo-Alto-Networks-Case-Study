@@ -1,28 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  getUsers,
+  searchUsers,
+  getMyCircleMembers,
+  addCircleMember,
+  removeCircleMember,
+  getMyMemberships,
   getCircleMessages,
   sendCircleMessage,
-  getCircleRequests,
-  handleCircleRequest,
 } from '../lib/api';
 import type { User } from '../types/report';
-import type { CircleMessage, CircleRequest } from '../lib/api';
-
-interface SafeCircleProps {
-  userId: string;
-}
-
-const MOCK_SAFE_CIRCLES: Record<string, string[]> = {
-  user_001: ['user_002', 'user_003'],
-  user_002: ['user_001', 'user_005'],
-  user_003: ['user_001', 'user_004'],
-  user_004: ['user_003'],
-  user_005: ['user_002'],
-};
-
-const CIRCLE_OWNER = 'user_001';
+import type { CircleMessage, CircleMembership } from '../lib/api';
 
 function formatTime(iso: string): string {
   if (!iso) return '';
@@ -35,66 +23,32 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function SafeCircle({ userId }: SafeCircleProps) {
-  const { user } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
-  const [isSafe, setIsSafe] = useState(false);
-  const [contactStatuses, setContactStatuses] = useState<Record<string, boolean>>({});
-
+function ChatPanel({ circleOwnerId, userId }: { circleOwnerId: string; userId: string }) {
   const [messages, setMessages] = useState<CircleMessage[]>([]);
   const [newMsg, setNewMsg] = useState('');
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState('');
-  const [isMember, setIsMember] = useState(false);
-  const [loadingChat, setLoadingChat] = useState(true);
-
-  const [requests, setRequests] = useState<CircleRequest[]>([]);
-
+  const [loading, setLoading] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const isAdmin = user?.role === 'Admin';
-
   useEffect(() => {
-    getUsers().then(setUsers);
-  }, []);
-
-  useEffect(() => {
-    setLoadingChat(true);
-    getCircleMessages(CIRCLE_OWNER)
-      .then(msgs => {
-        setMessages(msgs);
-        setIsMember(true);
-      })
-      .catch(() => {
-        setIsMember(false);
-      })
-      .finally(() => setLoadingChat(false));
-
-    if (isAdmin) {
-      getCircleRequests(CIRCLE_OWNER).then(setRequests).catch(() => {});
-    }
-  }, [isAdmin]);
+    setLoading(true);
+    getCircleMessages(circleOwnerId)
+      .then(setMessages)
+      .catch(() => setChatError('Could not load messages.'))
+      .finally(() => setLoading(false));
+  }, [circleOwnerId]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  const circleIds = MOCK_SAFE_CIRCLES[userId] || [];
-  const contacts = users.filter(u => circleIds.includes(u.id));
-  const currentUser = users.find(u => u.id === userId);
-
-  const toggleSafe = () => setIsSafe(!isSafe);
-
-  const toggleContactStatus = (contactId: string) => {
-    setContactStatuses(prev => ({ ...prev, [contactId]: !prev[contactId] }));
-  };
 
   const handleSend = async () => {
     if (!newMsg.trim() || sending) return;
     setSending(true);
     setChatError('');
     try {
-      const msg = await sendCircleMessage(CIRCLE_OWNER, newMsg.trim());
+      const msg = await sendCircleMessage(circleOwnerId, newMsg.trim());
       setMessages(prev => [...prev, msg]);
       setNewMsg('');
     } catch {
@@ -104,17 +58,119 @@ export default function SafeCircle({ userId }: SafeCircleProps) {
     }
   };
 
-  const handleApprove = async (reqId: string) => {
+  if (loading) return <p className="text-sm text-calm-500 py-4">Loading chat...</p>;
+
+  return (
+    <div className="bg-white rounded-xl border border-calm-200 overflow-hidden">
+      <div className="h-72 overflow-y-auto p-4 space-y-3">
+        {messages.length === 0 && (
+          <p className="text-sm text-calm-400 text-center py-8">No messages yet. Start the conversation!</p>
+        )}
+        {messages.map(msg => {
+          const isOwn = msg.sender_id === userId;
+          return (
+            <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+              <div className="max-w-[75%]">
+                {!isOwn && (
+                  <p className="text-xs font-medium text-calm-600 mb-0.5">{msg.sender_name}</p>
+                )}
+                <div
+                  className={`px-3 py-2 rounded-lg text-sm ${
+                    isOwn
+                      ? 'bg-calm-600 text-white rounded-br-sm'
+                      : 'bg-calm-100 text-calm-800 rounded-bl-sm'
+                  }`}
+                >
+                  {msg.content}
+                </div>
+                <p className={`text-[10px] text-calm-400 mt-0.5 ${isOwn ? 'text-right' : ''}`}>
+                  {formatTime(msg.created_at)}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={chatEndRef} />
+      </div>
+
+      {chatError && <div className="px-4 py-1 text-xs text-danger">{chatError}</div>}
+
+      <div className="border-t border-calm-200 p-3 flex gap-2">
+        <input
+          type="text"
+          value={newMsg}
+          onChange={e => setNewMsg(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+          placeholder="Type a message..."
+          className="flex-1 px-3 py-2 text-sm border border-calm-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-calm-400"
+          maxLength={2000}
+        />
+        <button
+          onClick={handleSend}
+          disabled={sending || !newMsg.trim()}
+          className="px-4 py-2 bg-calm-600 text-white text-sm font-medium rounded-lg hover:bg-calm-700 transition-colors disabled:opacity-50"
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function SafeCircle({ userId }: { userId: string }) {
+  const { user } = useAuth();
+  const [members, setMembers] = useState<User[]>([]);
+  const [memberships, setMemberships] = useState<CircleMembership[]>([]);
+  const [loadingCircle, setLoadingCircle] = useState(true);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  const [openChat, setOpenChat] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoadingCircle(true);
+    Promise.all([getMyCircleMembers(), getMyMemberships()])
+      .then(([m, ms]) => {
+        setMembers(m);
+        setMemberships(ms);
+      })
+      .finally(() => setLoadingCircle(false));
+  }, []);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const timeout = setTimeout(() => {
+      setSearching(true);
+      searchUsers(searchQuery.trim())
+        .then(setSearchResults)
+        .finally(() => setSearching(false));
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchQuery]);
+
+  const memberIds = new Set(members.map(m => m.id));
+  const filteredResults = searchResults.filter(
+    u => u.id !== userId && !memberIds.has(u.id)
+  );
+
+  const handleAdd = async (contactId: string) => {
     try {
-      await handleCircleRequest(CIRCLE_OWNER, reqId, 'approved');
-      setRequests(prev => prev.filter(r => r.id !== reqId));
+      const added = await addCircleMember(contactId);
+      setMembers(prev => [...prev, added]);
+      setSearchQuery('');
+      setSearchResults([]);
     } catch { /* ignore */ }
   };
 
-  const handleDeny = async (reqId: string) => {
+  const handleRemove = async (contactId: string) => {
     try {
-      await handleCircleRequest(CIRCLE_OWNER, reqId, 'denied');
-      setRequests(prev => prev.filter(r => r.id !== reqId));
+      await removeCircleMember(contactId);
+      setMembers(prev => prev.filter(m => m.id !== contactId));
     } catch { /* ignore */ }
   };
 
@@ -122,40 +178,58 @@ export default function SafeCircle({ userId }: SafeCircleProps) {
     <div className="max-w-2xl">
       <h2 className="text-lg font-semibold text-calm-900 mb-1">Safe Circle</h2>
       <p className="text-sm text-calm-600 mb-5">
-        Share your status with trusted contacts. Only members of your circle can see your updates.
+        Your trusted contacts. Add people you trust and chat with your circle.
       </p>
 
-      {/* Current user status */}
-      <div className="bg-white rounded-xl border border-calm-200 p-4 mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-calm-800">
-              {currentUser?.username || 'You'}
-            </p>
-            <p className="text-xs text-calm-500">{currentUser?.neighborhood}</p>
+      {/* Section A: My Safe Circle */}
+      <h3 className="text-sm font-semibold text-calm-800 mb-3">My Safe Circle</h3>
+
+      {/* Search to add */}
+      <div className="relative mb-4">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search users to add..."
+          className="w-full px-3 py-2 text-sm border border-calm-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-calm-400"
+        />
+        {searchQuery.trim() && (
+          <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-calm-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            {searching && (
+              <p className="text-xs text-calm-500 p-3">Searching...</p>
+            )}
+            {!searching && filteredResults.length === 0 && (
+              <p className="text-xs text-calm-500 p-3">No users found.</p>
+            )}
+            {filteredResults.map(u => (
+              <button
+                key={u.id}
+                onClick={() => handleAdd(u.id)}
+                className="w-full text-left px-3 py-2 hover:bg-calm-50 flex items-center justify-between gap-2 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 bg-calm-200 rounded-full flex items-center justify-center text-xs font-medium text-calm-700">
+                    {u.username.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-calm-800">{u.username}</p>
+                    <p className="text-xs text-calm-500">{u.neighborhood}</p>
+                  </div>
+                </div>
+                <span className="text-xs text-calm-500">+ Add</span>
+              </button>
+            ))}
           </div>
-          <button
-            onClick={toggleSafe}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-              isSafe
-                ? 'bg-green-100 text-green-700 border border-green-300 shadow-sm'
-                : 'bg-calm-100 text-calm-600 border border-calm-200 hover:bg-calm-200'
-            }`}
-          >
-            {isSafe ? '✓ I\'m Safe' : 'Mark as Safe'}
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* Trusted contacts */}
-      <h3 className="text-sm font-semibold text-calm-800 mb-3">
-        Trusted Contacts ({contacts.length})
-      </h3>
-      {contacts.length === 0 ? (
-        <p className="text-sm text-calm-500">No contacts in your Safe Circle.</p>
+      {loadingCircle ? (
+        <p className="text-sm text-calm-500">Loading circle...</p>
+      ) : members.length === 0 ? (
+        <p className="text-sm text-calm-500 mb-4">No one in your circle yet. Search above to add people.</p>
       ) : (
-        <div className="space-y-2 mb-6">
-          {contacts.map(contact => (
+        <div className="space-y-2 mb-4">
+          {members.map(contact => (
             <div
               key={contact.id}
               className="bg-white rounded-lg border border-calm-200 p-3 flex items-center justify-between"
@@ -170,125 +244,52 @@ export default function SafeCircle({ userId }: SafeCircleProps) {
                 </div>
               </div>
               <button
-                onClick={() => toggleContactStatus(contact.id)}
-                className="text-xs text-calm-500 hover:text-calm-700"
+                onClick={() => handleRemove(contact.id)}
+                className="text-xs text-calm-400 hover:text-red-500 transition-colors"
               >
-                {contactStatuses[contact.id] ? (
-                  <span className="text-green-600 font-medium">Safe ✓</span>
-                ) : (
-                  <span className="text-calm-400">Status unknown</span>
-                )}
+                Remove
               </button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Admin: Pending join requests */}
-      {isAdmin && requests.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-sm font-semibold text-calm-800 mb-3">
-            Pending Requests ({requests.length})
-          </h3>
-          <div className="space-y-2">
-            {requests.map(req => (
-              <div
-                key={req.id}
-                className="bg-white rounded-lg border border-calm-200 p-3 flex items-center justify-between"
+      {/* My circle chat */}
+      <h4 className="text-xs font-semibold text-calm-700 mb-2 uppercase tracking-wide">My Circle Chat</h4>
+      <ChatPanel circleOwnerId={userId} userId={userId} />
+
+      {/* Section B: Circles I'm In */}
+      <h3 className="text-sm font-semibold text-calm-800 mt-8 mb-3">Circles I'm In</h3>
+      {memberships.length === 0 ? (
+        <p className="text-sm text-calm-500">You haven't been added to any other circles yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {memberships.map(m => (
+            <div key={m.owner_id}>
+              <button
+                onClick={() => setOpenChat(openChat === m.owner_id ? null : m.owner_id)}
+                className="w-full bg-white rounded-lg border border-calm-200 p-3 flex items-center justify-between hover:bg-calm-50 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center text-sm font-medium text-amber-700">
-                    {req.requester_name.charAt(0)}
+                  <div className="w-8 h-8 bg-calm-300 rounded-full flex items-center justify-center text-sm font-medium text-calm-800">
+                    {m.owner_name.charAt(0)}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-calm-800">{req.requester_name}</p>
-                    <p className="text-xs text-calm-500">{formatTime(req.created_at)}</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleApprove(req.id)}
-                    className="text-xs font-medium px-3 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => handleDeny(req.id)}
-                    className="text-xs font-medium px-3 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
-                  >
-                    Deny
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Group Chat */}
-      <h3 className="text-sm font-semibold text-calm-800 mb-3">Group Chat</h3>
-      {loadingChat ? (
-        <p className="text-sm text-calm-500">Loading chat...</p>
-      ) : !isMember ? (
-        <div className="bg-white rounded-xl border border-calm-200 p-6 text-center">
-          <p className="text-sm text-calm-600 mb-3">You are not a member of this circle's chat.</p>
-          <p className="text-xs text-calm-400">Contact an admin to request access.</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl border border-calm-200 overflow-hidden">
-          <div className="h-80 overflow-y-auto p-4 space-y-3">
-            {messages.length === 0 && (
-              <p className="text-sm text-calm-400 text-center py-8">No messages yet.</p>
-            )}
-            {messages.map(msg => {
-              const isOwn = msg.sender_id === userId;
-              return (
-                <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[75%] ${isOwn ? 'order-2' : ''}`}>
-                    {!isOwn && (
-                      <p className="text-xs font-medium text-calm-600 mb-0.5">{msg.sender_name}</p>
-                    )}
-                    <div
-                      className={`px-3 py-2 rounded-lg text-sm ${
-                        isOwn
-                          ? 'bg-calm-600 text-white rounded-br-sm'
-                          : 'bg-calm-100 text-calm-800 rounded-bl-sm'
-                      }`}
-                    >
-                      {msg.content}
-                    </div>
-                    <p className={`text-[10px] text-calm-400 mt-0.5 ${isOwn ? 'text-right' : ''}`}>
-                      {formatTime(msg.created_at)}
-                    </p>
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-calm-800">{m.owner_name}'s Circle</p>
+                    <p className="text-xs text-calm-500">{m.owner_neighborhood}</p>
                   </div>
                 </div>
-              );
-            })}
-            <div ref={chatEndRef} />
-          </div>
-
-          {chatError && (
-            <div className="px-4 py-1 text-xs text-danger">{chatError}</div>
-          )}
-
-          <div className="border-t border-calm-200 p-3 flex gap-2">
-            <input
-              type="text"
-              value={newMsg}
-              onChange={e => setNewMsg(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-              placeholder="Type a message..."
-              className="flex-1 px-3 py-2 text-sm border border-calm-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-calm-400"
-              maxLength={2000}
-            />
-            <button
-              onClick={handleSend}
-              disabled={sending || !newMsg.trim()}
-              className="px-4 py-2 bg-calm-600 text-white text-sm font-medium rounded-lg hover:bg-calm-700 transition-colors disabled:opacity-50"
-            >
-              Send
-            </button>
-          </div>
+                <span className={`text-xs text-calm-400 transition-transform ${openChat === m.owner_id ? 'rotate-90' : ''}`}>
+                  ▸
+                </span>
+              </button>
+              {openChat === m.owner_id && (
+                <div className="mt-2 mb-2">
+                  <ChatPanel circleOwnerId={m.owner_id} userId={userId} />
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 

@@ -31,7 +31,10 @@ def init_db(db=None):
             id TEXT PRIMARY KEY,
             username TEXT NOT NULL UNIQUE,
             neighborhood TEXT NOT NULL,
-            role TEXT NOT NULL CHECK(role IN ('User', 'Guardian', 'Admin'))
+            role TEXT NOT NULL CHECK(role IN ('User', 'Guardian', 'Admin')),
+            password_hash TEXT,
+            lat REAL,
+            lng REAL
         );
 
         CREATE TABLE IF NOT EXISTS safe_circles (
@@ -64,7 +67,10 @@ def init_db(db=None):
             upvotes INTEGER NOT NULL DEFAULT 0,
             downvotes INTEGER NOT NULL DEFAULT 0,
             resolution_note TEXT,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            source_count INTEGER NOT NULL DEFAULT 1,
+            lat REAL,
+            lng REAL
         );
 
         CREATE TABLE IF NOT EXISTS votes (
@@ -84,15 +90,6 @@ def init_db(db=None):
             created_at TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS safe_circle_requests (
-            id TEXT PRIMARY KEY,
-            circle_owner_id TEXT NOT NULL REFERENCES users(id),
-            requester_id TEXT NOT NULL REFERENCES users(id),
-            status TEXT NOT NULL DEFAULT 'pending'
-                CHECK(status IN ('pending', 'approved', 'denied')),
-            created_at TEXT NOT NULL,
-            UNIQUE(circle_owner_id, requester_id)
-        );
     """)
     db.commit()
 
@@ -107,15 +104,16 @@ def seed_db(db=None):
 
     now = datetime.utcnow()
 
+    # (id, username, neighborhood, role, password_hash, lat, lng)
     users = [
-        ("user_001", "Maria Santos", "North Palo Alto", "Guardian"),
-        ("user_002", "Jake Chen", "Downtown", "User"),
-        ("user_003", "Aisha Patel", "College Terrace", "User"),
-        ("user_004", "Tom Rivera", "Midtown", "Admin"),
-        ("user_005", "Lily Nguyen", "South Palo Alto", "User"),
+        ("user_001", "maria", "North End", "Guardian", "pass123", 40.4401, -86.9077),
+        ("user_002", "jake", "Downtown", "User", "pass456", 40.4275, -86.9077),
+        ("user_003", "aisha", "Eastside", "User", "pass789", 40.4260, -86.8950),
+        ("user_004", "tom", "Midtown", "Admin", "admin123", 40.4220, -86.9200),
+        ("user_005", "lily", "Southside", "User", "pass321", 40.4150, -86.9077),
     ]
     db.executemany(
-        "INSERT INTO users (id, username, neighborhood, role) VALUES (?, ?, ?, ?)",
+        "INSERT INTO users (id, username, neighborhood, role, password_hash, lat, lng) VALUES (?, ?, ?, ?, ?, ?, ?)",
         users,
     )
 
@@ -138,19 +136,19 @@ def seed_db(db=None):
         return dt.isoformat() + "Z"
 
     raw_posts = [
-        ("post_001", "user_002", "OMG THERE IS A CRAZY FIRE ON ELM STREET EVERYONE IS GOING TO DIE!!! The smoke is insane run for your lives!!!",
+        ("post_001", "user_002", "OMG THERE IS A CRAZY FIRE ON NORTH SALISBURY STREET EVERYONE IS GOING TO DIE!!! The smoke is insane run for your lives!!!",
          utc_iso(now - timedelta(hours=5)), "Social"),
-        ("post_002", "user_003", "Some sketchy guy just tried to break into my neighbor's car!! I saw the whole thing this neighborhood is going downhill FAST. We need to do something!!",
+        ("post_002", "user_003", "Some sketchy guy just tried to break into my neighbor's car near State Street!! I saw the whole thing this neighborhood is going downhill FAST. We need to do something!!",
          utc_iso(now - timedelta(hours=4)), "Social"),
-        ("post_003", "user_005", "SCAM ALERT!!! Got a fake email from 'PG&E' saying I owe $500 and they'll cut my power. The link looks super shady DO NOT CLICK IT people!!!",
+        ("post_003", "user_005", "SCAM ALERT!!! Got a fake email from 'Duke Energy' saying I owe $500 and they'll cut my power. The link looks super shady DO NOT CLICK IT people!!!",
          utc_iso(now - timedelta(hours=3)), "Manual_Entry"),
-        ("post_004", "user_001", "There's a downed power line on University Ave near the intersection with Main. Sparks everywhere. Stay away from the area.",
+        ("post_004", "user_001", "There's a downed power line on Northwestern Ave near State Street. Sparks everywhere. Stay away from the area.",
          utc_iso(now - timedelta(hours=2)), "Manual_Entry"),
-        ("post_005", "user_004", "Heads up — multiple people in the Midtown area reporting a phishing text message pretending to be from the local school district asking for SSNs.",
+        ("post_005", "user_004", "Heads up — multiple people reporting a phishing text message pretending to be from Purdue University asking for SSNs.",
          utc_iso(now - timedelta(hours=1)), "News_Aggregator"),
-        ("post_006", "user_002", "There's a huge pothole on California Ave that just wrecked my tire. The city needs to fix this ASAP before someone gets hurt!!!",
+        ("post_006", "user_002", "There's a huge pothole on Northwestern Ave that just wrecked my tire. The city needs to fix this ASAP before someone gets hurt!!!",
          utc_iso(now - timedelta(minutes=45)), "Social"),
-        ("post_007", "user_003", "FLOOD WARNING!! The creek behind Greer Park is overflowing!! Water is getting into the parking lot. This is NOT a drill people!!",
+        ("post_007", "user_003", "FLOOD WARNING!! Burnett Creek is overflowing!! Water is getting into the parking lot on the south side. This is NOT a drill people!!",
          utc_iso(now - timedelta(minutes=30)), "Social"),
         ("post_008", "user_005", "Someone hacked into the neighborhood Facebook group and is posting malware links. DO NOT click anything from 'Admin_Official' account!!",
          utc_iso(now - timedelta(minutes=15)), "Social"),
@@ -160,56 +158,69 @@ def seed_db(db=None):
         raw_posts,
     )
 
+    # West Lafayette, IN neighbourhood coords used as incident locations
+    PA_COORDS = {
+        "north":    (40.4401, -86.9077),    # rep_001 – North End
+        "downtown": (40.4275, -86.9077),    # rep_002 – Downtown
+        "digital":  (None,    None),         # digital reports have no physical location
+        "north2":   (40.4380, -86.9020),    # rep_004 – main street area
+        "midtown":  (40.4220, -86.9200),    # rep_005 – Midtown
+        "greer":    (40.4190, -86.9140),    # rep_006 – South park area
+    }
+
+    # (id, parent_post_id, category, severity, title, summary, checklist,
+    #  status, location_radius, is_ai_generated, trust_label, upvotes, downvotes,
+    #  resolution_note, created_at, source_count, lat, lng)
     reports = [
         ("rep_001", "post_001", "Local_Physical", "High",
-         "Vegetation Fire: Elm Street Area",
-         "A fire has been reported on Elm Street with visible smoke. Emergency services are responding to the scene.",
-         json.dumps(["Avoid Elm Street and surrounding blocks.", "Close windows if you smell smoke.", "Check official city alerts for updates."]),
+         "Structure Fire: North Salisbury Street",
+         "A fire has been reported on North Salisbury Street with visible smoke. Emergency services are responding to the scene.",
+         json.dumps(["Avoid North Salisbury Street and surrounding blocks.", "Close windows if you smell smoke.", "Check official city alerts for updates."]),
          "Active", 800, 1, "community_verified", 5, 1,
-         None, utc_iso(now - timedelta(hours=5))),
+         None, utc_iso(now - timedelta(hours=5)), 1, *PA_COORDS["north"]),
 
         ("rep_002", "post_002", "Local_Physical", "Medium",
          "Vehicle Break-In Attempt: Downtown Area",
-         "An attempted vehicle break-in has been reported in the Downtown neighborhood. No injuries or successful theft confirmed.",
+         "An attempted vehicle break-in has been reported in the Downtown area near State Street. No injuries or successful theft confirmed.",
          json.dumps(["Lock vehicles and remove visible valuables.", "Report suspicious activity to local police.", "Consider installing a dashcam or motion-sensor light."]),
          "Active", 500, 1, "ai_generated", 2, 0,
-         None, utc_iso(now - timedelta(hours=4))),
+         None, utc_iso(now - timedelta(hours=4)), 1, *PA_COORDS["downtown"]),
 
         ("rep_003", "post_003", "Digital_Security", "Medium",
          "Phishing Email: Fake Utility Bill Notice",
-         "A phishing email impersonating PG&E is circulating, claiming overdue payment and threatening service disconnection. No data breach has been confirmed.",
-         json.dumps(["Do not click links in unsolicited emails.", "Verify sender address matches official PG&E domains.", "Report the email as spam in your client."]),
+         "A phishing email impersonating Duke Energy is circulating, claiming overdue payment and threatening service disconnection. No data breach has been confirmed.",
+         json.dumps(["Do not click links in unsolicited emails.", "Verify the sender address matches official Duke Energy domains.", "Report the email as spam in your client."]),
          "Active", 0, 1, "ai_generated", 1, 0,
-         None, utc_iso(now - timedelta(hours=3))),
+         None, utc_iso(now - timedelta(hours=3)), 1, *PA_COORDS["digital"]),
 
         ("rep_004", "post_004", "Local_Physical", "High",
-         "Downed Power Line: University Ave & Main",
-         "A downed power line has been reported at the intersection of University Ave and Main Street. Electrical sparks have been observed.",
+         "Downed Power Line: Northwestern Ave & State St",
+         "A downed power line has been reported at Northwestern Ave near State Street. Electrical sparks have been observed.",
          json.dumps(["Stay at least 30 feet away from the downed line.", "Do not touch anything in contact with the wire.", "Call 911 if you haven't already."]),
          "Resolved", 600, 1, "community_verified", 7, 0,
-         "Utility crew has secured the area and restored power.", utc_iso(now - timedelta(hours=2))),
+         "Utility crew has secured the area and restored power.", utc_iso(now - timedelta(hours=2)), 1, *PA_COORDS["north2"]),
 
         ("rep_005", "post_005", "Digital_Security", "High",
-         "SMS Phishing: Fake School District Messages",
-         "Multiple residents in the Midtown area are receiving phishing text messages impersonating the local school district and requesting Social Security numbers.",
-         json.dumps(["Do not reply or provide personal information.", "Block the sender and report to your carrier.", "Notify the school district of the impersonation."]),
+         "SMS Phishing: Fake University Messages",
+         "Multiple residents are receiving phishing text messages impersonating Purdue University and requesting Social Security numbers.",
+         json.dumps(["Do not reply or provide personal information.", "Block the sender and report to your carrier.", "Notify the university IT security office of the impersonation."]),
          "Active", 0, 1, "ai_generated", 3, 0,
-         None, utc_iso(now - timedelta(hours=1))),
+         None, utc_iso(now - timedelta(hours=1)), 1, *PA_COORDS["digital"]),
 
         ("rep_006", "post_007", "Local_Physical", "Medium",
-         "Creek Overflow: Greer Park Area",
-         "The creek behind Greer Park is overflowing into the adjacent parking lot. No structural damage reported yet.",
-         json.dumps(["Avoid parking in the Greer Park lot.", "Monitor local weather and flood advisories.", "Report rising water to public works."]),
+         "Creek Overflow: Burnett Creek Area",
+         "Burnett Creek is overflowing into the adjacent parking lot on the south side. No structural damage reported yet.",
+         json.dumps(["Avoid parking near Burnett Creek.", "Monitor local weather and flood advisories.", "Report rising water to public works."]),
          "Active", 400, 0, "pending_verification", 1, 2,
-         None, utc_iso(now - timedelta(minutes=30))),
+         None, utc_iso(now - timedelta(minutes=30)), 1, *PA_COORDS["greer"]),
     ]
     for r in reports:
         db.execute(
             """INSERT INTO safety_reports
                (id, parent_post_id, category, severity, title, summary, checklist,
                 status, location_radius, is_ai_generated, trust_label, upvotes, downvotes,
-                resolution_note, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                resolution_note, created_at, source_count, lat, lng)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             r,
         )
 
@@ -239,28 +250,28 @@ def seed_db(db=None):
     # Seed group chat messages for user_001's circle
     chat_messages = [
         ("msg_001", "user_001", "user_001",
-         "Hey everyone, is everyone okay after the fire on Elm Street?",
+         "Hey everyone, is everyone okay after the fire on Salisbury Street?",
          utc_iso(now - timedelta(hours=4, minutes=30))),
         ("msg_002", "user_001", "user_002",
          "We're fine over here. Could see the smoke from Downtown though.",
          utc_iso(now - timedelta(hours=4, minutes=25))),
         ("msg_003", "user_001", "user_003",
-         "All safe in College Terrace. Fire trucks went by about an hour ago.",
+         "All safe on the east side. Fire trucks went by about an hour ago.",
          utc_iso(now - timedelta(hours=4, minutes=20))),
         ("msg_004", "user_001", "user_001",
-         "Good to hear. Stay away from Elm, the road is still blocked off.",
+         "Good to hear. Stay away from Salisbury, the road is still blocked off.",
          utc_iso(now - timedelta(hours=4, minutes=15))),
         ("msg_005", "user_001", "user_002",
-         "Has anyone heard about the break-in attempt on our block?",
+         "Has anyone heard about the break-in attempt near State Street?",
          utc_iso(now - timedelta(hours=3))),
         ("msg_006", "user_001", "user_003",
          "Yes, I filed a report. Keep your car doors locked tonight.",
          utc_iso(now - timedelta(hours=2, minutes=50))),
         ("msg_007", "user_001", "user_001",
-         "Power is back on our block after the downed line on University Ave.",
+         "Power is back on our block after the downed line on Northwestern Ave.",
          utc_iso(now - timedelta(hours=1, minutes=30))),
         ("msg_008", "user_001", "user_002",
-         "Stay away from University Ave, still sparking near Main.",
+         "Stay away from Northwestern Ave, still sparking near State St.",
          utc_iso(now - timedelta(hours=1, minutes=20))),
         ("msg_009", "user_001", "user_003",
          "The utility crew just arrived. Should be cleared soon.",
@@ -272,18 +283,6 @@ def seed_db(db=None):
     db.executemany(
         "INSERT INTO safe_circle_messages (id, circle_owner_id, sender_id, content, created_at) VALUES (?, ?, ?, ?, ?)",
         chat_messages,
-    )
-
-    # Seed pending join requests
-    join_requests = [
-        ("req_001", "user_001", "user_005", "pending",
-         utc_iso(now - timedelta(hours=2))),
-        ("req_002", "user_001", "user_004", "pending",
-         utc_iso(now - timedelta(hours=1))),
-    ]
-    db.executemany(
-        "INSERT INTO safe_circle_requests (id, circle_owner_id, requester_id, status, created_at) VALUES (?, ?, ?, ?, ?)",
-        join_requests,
     )
 
     db.commit()

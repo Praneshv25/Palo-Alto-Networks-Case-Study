@@ -16,6 +16,16 @@ export default function CreateReportForm({ onCreated }: CreateReportFormProps) {
   const [error, setError] = useState('');
   const [result, setResult] = useState<SafetyReport | null>(null);
 
+  const getPosition = (): Promise<{ lat: number; lng: number } | null> =>
+    new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000 }
+      );
+    });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -28,10 +38,13 @@ export default function CreateReportForm({ onCreated }: CreateReportFormProps) {
 
     setSubmitting(true);
     try {
+      const coords = await getPosition();
       const report = await createReport({
         content: content.trim(),
         category,
         author_id: user!.id,
+        lat: coords?.lat ?? null,
+        lng: coords?.lng ?? null,
       });
       setResult(report);
       setContent('');

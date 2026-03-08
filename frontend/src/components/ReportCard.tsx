@@ -70,6 +70,15 @@ export default function ReportCard({ report, userId, onUpdate }: ReportCardProps
               {report.severity}
             </span>
             <TrustBadge trustLabel={report.trustLabel} />
+            {report.sourceCount > 1 && (
+              <span
+                title={`${report.sourceCount} community reports about this incident`}
+                className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1"
+              >
+                <span>⬡</span>
+                {report.sourceCount} reports
+              </span>
+            )}
             {isResolved && (
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-calm-100 text-calm-700 border border-calm-300">
                 Resolved
