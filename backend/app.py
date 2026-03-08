@@ -17,10 +17,14 @@ def create_app(test_config=None):
     from database import init_app
     init_app(app)
 
+    from routes.auth import auth_bp
     from routes.reports import reports_bp
     from routes.votes import votes_bp
+    from routes.circles import circles_bp
+    app.register_blueprint(auth_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(votes_bp)
+    app.register_blueprint(circles_bp)
 
     @app.route("/api/health")
     def health():

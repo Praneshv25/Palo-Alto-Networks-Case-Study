@@ -1,7 +1,7 @@
 import json
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from database import get_db
 from services.ai_service import filter_with_ai
@@ -50,7 +50,7 @@ def create_report():
         return jsonify({"error": f"User '{author_id}' not found"}), 400
 
     post_id = f"post_{uuid.uuid4().hex[:8]}"
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
     db.execute(
         "INSERT INTO raw_posts (id, author_id, content, timestamp, source_type) VALUES (?, ?, ?, ?, ?)",

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from database import get_db
 from services.trust import compute_trust_label
@@ -56,7 +56,7 @@ def cast_vote(report_id):
     else:
         # New vote
         vote_id = f"vote_{uuid.uuid4().hex[:8]}"
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         db.execute(
             "INSERT INTO votes (id, report_id, user_id, vote_type, created_at) VALUES (?, ?, ?, ?, ?)",
             (vote_id, report_id, user_id, vote_type, now),

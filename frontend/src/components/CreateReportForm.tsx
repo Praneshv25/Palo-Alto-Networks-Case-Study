@@ -1,27 +1,20 @@
-import { useState, useEffect } from 'react';
-import type { SafetyReport, User } from '../types/report';
-import { createReport, getUsers } from '../lib/api';
+import { useState } from 'react';
+import type { SafetyReport } from '../types/report';
+import { createReport } from '../lib/api';
 import TrustBadge from './TrustBadge';
+import { useAuth } from '../context/AuthContext';
 
 interface CreateReportFormProps {
   onCreated: () => void;
 }
 
 export default function CreateReportForm({ onCreated }: CreateReportFormProps) {
+  const { user } = useAuth();
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<'local' | 'digital'>('local');
-  const [authorId, setAuthorId] = useState('');
-  const [users, setUsers] = useState<User[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<SafetyReport | null>(null);
-
-  useEffect(() => {
-    getUsers().then(u => {
-      setUsers(u);
-      if (u.length > 0) setAuthorId(u[0].id);
-    });
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,17 +25,13 @@ export default function CreateReportForm({ onCreated }: CreateReportFormProps) {
       setError('Please describe the incident.');
       return;
     }
-    if (!authorId) {
-      setError('Please select a reporter.');
-      return;
-    }
 
     setSubmitting(true);
     try {
       const report = await createReport({
         content: content.trim(),
         category,
-        author_id: authorId,
+        author_id: user!.id,
       });
       setResult(report);
       setContent('');
@@ -111,22 +100,9 @@ export default function CreateReportForm({ onCreated }: CreateReportFormProps) {
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-calm-800 mb-1">
-            Reporting as
-          </label>
-          <select
-            value={authorId}
-            onChange={e => setAuthorId(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-calm-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-calm-400"
-          >
-            {users.map(u => (
-              <option key={u.id} value={u.id}>
-                {u.username} — {u.neighborhood} ({u.role})
-              </option>
-            ))}
-          </select>
-        </div>
+        <p className="text-sm text-calm-600">
+          Reporting as <span className="font-medium text-calm-800">{user?.username}</span>
+        </p>
 
         {error && (
           <div className="text-sm text-danger bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -143,7 +119,6 @@ export default function CreateReportForm({ onCreated }: CreateReportFormProps) {
         </button>
       </form>
 
-      {/* Show AI result */}
       {result && (
         <div className="mt-6 p-4 bg-calm-100 border border-calm-300 rounded-xl">
           <div className="flex items-center gap-2 mb-2">

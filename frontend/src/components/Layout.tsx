@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { healthCheck } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 
 interface LayoutProps {
   children: ReactNode;
@@ -8,6 +9,7 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, currentView, onNavigate }: LayoutProps) {
+  const { user, logout } = useAuth();
   const [aiStatus, setAiStatus] = useState<string>('checking');
 
   useEffect(() => {
@@ -29,14 +31,27 @@ export default function Layout({ children, currentView, onNavigate }: LayoutProp
               <p className="text-calm-200 text-xs">Noise to Signal. Panic to Action.</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className={`inline-block w-2 h-2 rounded-full ${
-              aiStatus === 'connected' ? 'bg-green-300' :
-              aiStatus === 'checking' ? 'bg-yellow-300 animate-pulse' : 'bg-red-300'
-            }`} />
-            <span className="text-xs text-calm-200">
-              AI {aiStatus === 'connected' ? 'Online' : aiStatus === 'checking' ? '...' : 'Offline'}
-            </span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className={`inline-block w-2 h-2 rounded-full ${
+                aiStatus === 'connected' ? 'bg-green-300' :
+                aiStatus === 'checking' ? 'bg-yellow-300 animate-pulse' : 'bg-red-300'
+              }`} />
+              <span className="text-xs text-calm-200">
+                AI {aiStatus === 'connected' ? 'Online' : aiStatus === 'checking' ? '...' : 'Offline'}
+              </span>
+            </div>
+            {user && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-calm-200">{user.username}</span>
+                <button
+                  onClick={logout}
+                  className="text-xs text-calm-300 hover:text-white transition-colors"
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
           </div>
         </div>
         <nav className="max-w-5xl mx-auto px-4 flex gap-1 pb-0">
