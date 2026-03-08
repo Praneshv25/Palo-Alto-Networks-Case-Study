@@ -29,7 +29,7 @@ The application follows a decoupled Client-Server architecture with a focus on r
 | **Frontend** | React 18 + TypeScript | Type safety for complex report states and rapid UI development. |
 | **Styling** | Tailwind CSS | Rapid prototyping of the "Calm UI" design system. |
 | **Backend** | Flask (Python) | Seamless integration with AI SDKs and lightweight overhead. |
-| **AI** | Gemini 2.0 Flash | Low-latency inference for real-time text transformation. |
+| **AI** | Gemini 3.0 Flash | Low-latency inference for real-time text transformation. |
 | **Database** | SQLite | Zero-config, file-based storage ideal for MVP and local testing. |
 | **Testing** | Pytest & Vitest | Robust unit testing for backend logic and frontend component rendering. |
 
