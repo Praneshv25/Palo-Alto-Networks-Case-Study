@@ -1,6 +1,6 @@
----
 
-# 🛡️ Design Documentation: Community Guardian
+---
+# Design Documentation: Community Guardian
 
 ## 1. Executive Summary
 
@@ -16,7 +16,7 @@ The application follows a decoupled Client-Server architecture with a focus on r
 
 * **Frontend (React/TypeScript):** A responsive SPA (Single Page Application) built with Vite. It features a "Calm UI" design system using a de-saturated color palette (blues/greens) to reduce user anxiety during emergencies.
 * **Backend (Flask/Python):** A RESTful API that handles report ingestion, user authentication (synthetic), and the voting logic engine.
-* **AI Engine (Gemini 2.0 Flash):** Processes raw text to extract entities (location, severity) and generates a "1-2-3 Checklist" for residents.
+* **AI Engine (Gemini 3.0 Flash):** Processes raw text to extract entities (location, severity) and generates a "1-2-3 Checklist" for residents.
 * **Fallback Layer:** A regex-based keyword engine that ensures the app remains functional if the AI service is unreachable or rate-limited.
 * **Database (SQLite):** A lightweight relational store for users, raw posts, filtered reports, and community votes.
 

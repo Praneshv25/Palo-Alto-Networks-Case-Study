@@ -64,7 +64,7 @@ def filter_with_ai(content):
     client = _get_client()
 
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3.0-flash",
         contents=f"Raw neighborhood post:\n\n{content}",
         config={
             "system_instruction": SYSTEM_PROMPT,
@@ -124,7 +124,7 @@ def check_news_match(report_title, report_summary, article_title, article_conten
     )
 
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3.0-flash",
         contents=prompt,
         config={"temperature": 0.2},
     )
@@ -154,7 +154,7 @@ def check_and_aggregate(existing_title, existing_summary, new_content):
     )
 
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3.0-flash",
         contents=prompt,
         config={"temperature": 0.2},
     )
